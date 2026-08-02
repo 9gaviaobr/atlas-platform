@@ -1,3 +1,5 @@
+import { OperationalMap } from "@/components/map/operational-map";
+
 const navigation = [
   { label: "Visão geral", symbol: "◫", active: true },
   { label: "Inteligência", symbol: "◎" },
@@ -67,6 +69,7 @@ export default function Home() {
               <p className="text-base font-bold tracking-[0.16em] text-white">
                 ATLAS
               </p>
+
               <p className="text-xs text-slate-500">Intelligence Platform</p>
             </div>
           </div>
@@ -127,6 +130,7 @@ export default function Home() {
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-400">
                 Centro de comando
               </p>
+
               <h1 className="mt-1 text-xl font-semibold text-white">
                 Visão geral operacional
               </h1>
@@ -205,9 +209,11 @@ export default function Home() {
                   className="rounded-2xl border border-slate-800 bg-[#0a1020] p-5 transition hover:border-slate-700"
                 >
                   <p className="text-sm text-slate-500">{indicator.label}</p>
+
                   <p className="mt-3 text-3xl font-semibold text-white">
                     {indicator.value}
                   </p>
+
                   <p className="mt-3 text-xs text-cyan-300">
                     {indicator.detail}
                   </p>
@@ -222,42 +228,27 @@ export default function Home() {
                     <h3 className="font-semibold text-white">
                       Mapa operacional
                     </h3>
+
                     <p className="mt-1 text-xs text-slate-500">
                       Distribuição espacial dos registros monitorados
                     </p>
                   </div>
 
                   <button
-                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300"
+                    className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 transition hover:border-slate-600 hover:text-white"
                     type="button"
                   >
                     Expandir
                   </button>
                 </div>
 
-                <div className="relative flex min-h-[350px] items-center justify-center overflow-hidden bg-[linear-gradient(rgba(15,23,42,0.75),rgba(15,23,42,0.75)),radial-gradient(circle_at_center,rgba(34,211,238,0.14),transparent_55%)]">
-                  <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(148,163,184,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.15)_1px,transparent_1px)] [background-size:32px_32px]" />
-
-                  <div className="relative text-center">
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-400/10 text-3xl text-cyan-300">
-                      ⌖
-                    </div>
-
-                    <p className="mt-4 font-medium text-white">
-                      Camada cartográfica
-                    </p>
-
-                    <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                      O mapa interativo será conectado ao módulo geoespacial nas
-                      próximas etapas.
-                    </p>
-                  </div>
-                </div>
+                <OperationalMap />
               </article>
 
               <article className="rounded-2xl border border-slate-800 bg-[#0a1020]">
                 <div className="border-b border-slate-800 px-5 py-4">
                   <h3 className="font-semibold text-white">Atividade recente</h3>
+
                   <p className="mt-1 text-xs text-slate-500">
                     Eventos relevantes processados pelo Atlas
                   </p>
@@ -271,6 +262,7 @@ export default function Home() {
                           <h4 className="text-sm font-semibold text-white">
                             {activity.title}
                           </h4>
+
                           <p className="mt-2 text-xs leading-5 text-slate-500">
                             {activity.description}
                           </p>
