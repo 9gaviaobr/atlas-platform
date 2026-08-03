@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
@@ -10,10 +10,19 @@ import {
   OPERATIONAL_PRIORITY_CONFIG,
 } from "@/features/operational-map/operational-map.data";
 
+import {
+  filterOperationalEntities,
+  getOperationalStatuses,
+  INITIAL_OPERATIONAL_SEARCH_FILTERS,
+} from "@/features/operational-map/operational-map.search";
+
+import type { OperationalSearchFilters } from "@/features/operational-map/operational-map.search";
+
 import type {
   OperationalEntity,
   OperationalEntityType,
   OperationalLayerVisibility,
+  OperationalPriority,
 } from "@/features/operational-map/operational-map.types";
 
 type MapStatus = "loading" | "ready" | "error";
@@ -39,6 +48,41 @@ export function OperationalMap() {
 
   const [selectedEntity, setSelectedEntity] =
     useState<OperationalEntity | null>(null);
+
+  const [searchFilters, setSearchFilters] =
+    useState<OperationalSearchFilters>(
+      INITIAL_OPERATIONAL_SEARCH_FILTERS,
+    );
+
+  const [searchExpanded, setSearchExpanded] = useState(true);
+
+  const availableStatuses = useMemo(
+    () => getOperationalStatuses(DEMO_OPERATIONAL_ENTITIES),
+    [],
+  );
+
+  const filteredEntities = useMemo(
+    () =>
+      filterOperationalEntities(
+        DEMO_OPERATIONAL_ENTITIES,
+        searchFilters,
+      ),
+    [searchFilters],
+  );
+
+  const visibleEntities = useMemo(
+    () =>
+      filteredEntities.filter(
+        (entity) => layers[entity.type],
+      ),
+    [filteredEntities, layers],
+  );
+
+  const hasActiveFilters =
+    searchFilters.query.trim().length > 0 ||
+    searchFilters.type !== "all" ||
+    searchFilters.priority !== "all" ||
+    searchFilters.status !== "all";
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +142,10 @@ export function OperationalMap() {
           "top-right",
         );
 
-        map.addControl(new FullscreenControl(), "top-right");
+        map.addControl(
+          new FullscreenControl(),
+          "top-right",
+        );
 
         map.addControl(
           new ScaleControl({
@@ -124,13 +171,17 @@ export function OperationalMap() {
               event.error?.message ??
                 "Falha ao carregar a base cartográfica.",
             );
+
             setStatus("error");
           }
         });
 
         mapRef.current = map;
       } catch (error) {
-        console.error("Falha ao inicializar o mapa:", error);
+        console.error(
+          "Falha ao inicializar o mapa:",
+          error,
+        );
 
         if (!cancelled) {
           setErrorMessage(
@@ -138,6 +189,7 @@ export function OperationalMap() {
               ? error.message
               : "Não foi possível inicializar o mapa.",
           );
+
           setStatus("error");
         }
       }
@@ -148,7 +200,10 @@ export function OperationalMap() {
     return () => {
       cancelled = true;
 
-      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current.forEach((marker) =>
+        marker.remove(),
+      );
+
       markersRef.current = [];
 
       mapRef.current?.remove();
@@ -166,7 +221,10 @@ export function OperationalMap() {
         return;
       }
 
-      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current.forEach((marker) =>
+        marker.remove(),
+      );
+
       markersRef.current = [];
 
       const { Marker } = await import("maplibre-gl");
@@ -175,70 +233,91 @@ export function OperationalMap() {
         return;
       }
 
-      const visibleEntities = DEMO_OPERATIONAL_ENTITIES.filter(
-        (entity) => layers[entity.type],
+      markersRef.current = visibleEntities.map(
+        (entity) => {
+          const config =
+            OPERATIONAL_ENTITY_CONFIG[entity.type];
+
+          const isSelected =
+            selectedEntity?.id === entity.id;
+
+          const markerElement =
+            document.createElement("button");
+
+          markerElement.type = "button";
+
+          markerElement.setAttribute(
+            "aria-label",
+            `Selecionar ${config.singularLabel.toLowerCase()}: ${entity.title}`,
+          );
+
+          markerElement.style.width = isSelected
+            ? "42px"
+            : "34px";
+
+          markerElement.style.height = isSelected
+            ? "42px"
+            : "34px";
+
+          markerElement.style.borderRadius = "999px";
+
+          markerElement.style.border = isSelected
+            ? "4px solid #ffffff"
+            : "3px solid rgba(255, 255, 255, 0.95)";
+
+          markerElement.style.backgroundColor =
+            config.color;
+
+          markerElement.style.boxShadow = isSelected
+            ? `0 0 0 6px ${config.color}55, 0 10px 25px rgba(15, 23, 42, 0.45)`
+            : "0 8px 18px rgba(15, 23, 42, 0.35)";
+
+          markerElement.style.cursor = "pointer";
+
+          markerElement.style.transition =
+            "width 160ms ease, height 160ms ease, box-shadow 160ms ease";
+
+          markerElement.style.position = "relative";
+
+          const centerDot =
+            document.createElement("span");
+
+          centerDot.style.position = "absolute";
+          centerDot.style.left = "50%";
+          centerDot.style.top = "50%";
+
+          centerDot.style.width = isSelected
+            ? "10px"
+            : "8px";
+
+          centerDot.style.height = isSelected
+            ? "10px"
+            : "8px";
+
+          centerDot.style.borderRadius = "999px";
+          centerDot.style.backgroundColor = "#ffffff";
+
+          centerDot.style.transform =
+            "translate(-50%, -50%)";
+
+          markerElement.appendChild(centerDot);
+
+          markerElement.addEventListener(
+            "click",
+            (event) => {
+              event.stopPropagation();
+              selectEntity(entity);
+            },
+          );
+
+          return new Marker({
+            element: markerElement,
+            anchor: "center",
+          })
+            .setLngLat(entity.coordinates)
+            .addTo(map);
+        },
       );
-
-      markersRef.current = visibleEntities.map((entity) => {
-        const config = OPERATIONAL_ENTITY_CONFIG[entity.type];
-        const isSelected = selectedEntity?.id === entity.id;
-
-        const markerElement = document.createElement("button");
-
-        markerElement.type = "button";
-        markerElement.setAttribute(
-          "aria-label",
-          `Selecionar ${config.singularLabel.toLowerCase()}: ${entity.title}`,
-        );
-
-        markerElement.style.width = isSelected ? "42px" : "34px";
-        markerElement.style.height = isSelected ? "42px" : "34px";
-        markerElement.style.borderRadius = "999px";
-        markerElement.style.border = isSelected
-          ? "4px solid #ffffff"
-          : "3px solid rgba(255, 255, 255, 0.95)";
-        markerElement.style.backgroundColor = config.color;
-        markerElement.style.boxShadow = isSelected
-          ? `0 0 0 6px ${config.color}55, 0 10px 25px rgba(15, 23, 42, 0.45)`
-          : "0 8px 18px rgba(15, 23, 42, 0.35)";
-        markerElement.style.cursor = "pointer";
-        markerElement.style.transition =
-          "width 160ms ease, height 160ms ease, box-shadow 160ms ease";
-        markerElement.style.position = "relative";
-
-        const centerDot = document.createElement("span");
-
-        centerDot.style.position = "absolute";
-        centerDot.style.left = "50%";
-        centerDot.style.top = "50%";
-        centerDot.style.width = isSelected ? "10px" : "8px";
-        centerDot.style.height = isSelected ? "10px" : "8px";
-        centerDot.style.borderRadius = "999px";
-        centerDot.style.backgroundColor = "#ffffff";
-        centerDot.style.transform = "translate(-50%, -50%)";
-
-        markerElement.appendChild(centerDot);
-
-        markerElement.addEventListener("click", (event) => {
-          event.stopPropagation();
-
-          setSelectedEntity(entity);
-
-          map.flyTo({
-            center: entity.coordinates,
-            zoom: Math.max(map.getZoom(), 13),
-            duration: 900,
-            essential: true,
-          });
-        });
-
-        return new Marker({
-          element: markerElement,
-          anchor: "center",
-        })
-          .setLngLat(entity.coordinates)
-          .addTo(map);
-      });
     }
 
     void renderMarkers();
@@ -246,12 +325,37 @@ export function OperationalMap() {
     return () => {
       cancelled = true;
     };
-  }, [layers, selectedEntity, status]);
+  }, [selectedEntity, status, visibleEntities]);
+
+  function selectEntity(entity: OperationalEntity) {
+    const map = mapRef.current;
+
+    setLayers((current) => ({
+      ...current,
+      [entity.type]: true,
+    }));
+
+    setSelectedEntity(entity);
+
+    if (!map) {
+      return;
+    }
+
+    map.flyTo({
+      center: entity.coordinates,
+      zoom: Math.max(map.getZoom(), 13),
+      duration: 900,
+      essential: true,
+    });
+  }
 
   function toggleLayer(type: OperationalEntityType) {
     const layerWillBeHidden = layers[type];
 
-    if (layerWillBeHidden && selectedEntity?.type === type) {
+    if (
+      layerWillBeHidden &&
+      selectedEntity?.type === type
+    ) {
       setSelectedEntity(null);
     }
 
@@ -279,6 +383,24 @@ export function OperationalMap() {
     });
 
     setSelectedEntity(null);
+  }
+
+  function updateSearchFilter<
+    Key extends keyof OperationalSearchFilters,
+  >(
+    key: Key,
+    value: OperationalSearchFilters[Key],
+  ) {
+    setSearchFilters((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function clearSearchFilters() {
+    setSearchFilters(
+      INITIAL_OPERATIONAL_SEARCH_FILTERS,
+    );
   }
 
   function closeDetails() {
@@ -321,21 +443,22 @@ export function OperationalMap() {
     window.location.reload();
   }
 
-  const activeLayerCount = Object.values(layers).filter(Boolean).length;
-
-  const visibleEntityCount = DEMO_OPERATIONAL_ENTITIES.filter(
-    (entity) => layers[entity.type],
-  ).length;
+  const activeLayerCount =
+    Object.values(layers).filter(Boolean).length;
 
   const selectedEntityConfiguration = selectedEntity
     ? OPERATIONAL_ENTITY_CONFIG[selectedEntity.type]
     : null;
 
-  const selectedPriority = selectedEntity?.priority ?? "normal";
+  const selectedPriority =
+    selectedEntity?.priority ?? "normal";
 
-  const selectedPriorityConfiguration = selectedEntity
-    ? OPERATIONAL_PRIORITY_CONFIG[selectedPriority]
-    : null;
+  const selectedPriorityConfiguration =
+    selectedEntity
+      ? OPERATIONAL_PRIORITY_CONFIG[
+          selectedPriority
+        ]
+      : null;
 
   const formattedSelectedDate = selectedEntity
     ? new Intl.DateTimeFormat("pt-BR", {
@@ -345,100 +468,396 @@ export function OperationalMap() {
     : "";
 
   return (
-    <div className="relative h-[520px] w-full overflow-hidden bg-[#020617]">
+    <div className="relative h-[620px] w-full overflow-hidden bg-[#020617]">
       <div
         ref={containerRef}
         className="absolute inset-0 h-full w-full"
         aria-label="Mapa operacional de Manaus"
       />
 
-      <aside className="absolute left-4 top-4 z-20 w-60 rounded-xl border border-slate-700 bg-slate-950/90 p-3 shadow-xl backdrop-blur">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Camadas operacionais
-            </p>
+      <aside className="absolute bottom-4 left-4 top-4 z-20 flex w-[310px] flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/95 shadow-2xl backdrop-blur">
+        <div className="border-b border-slate-800 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-300">
+                Busca global
+              </p>
 
-            <p className="mt-1 text-[11px] text-slate-500">
-              {activeLayerCount} camadas · {visibleEntityCount} registros
-            </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Pessoas, veículos, alertas e
+                ocorrências
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              onClick={() =>
+                setSearchExpanded((current) => !current)
+              }
+              aria-label={
+                searchExpanded
+                  ? "Recolher busca"
+                  : "Expandir busca"
+              }
+            >
+              {searchExpanded ? "−" : "+"}
+            </button>
           </div>
 
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/10 text-xs font-bold text-cyan-300">
-            {visibleEntityCount}
-          </span>
+          {searchExpanded && (
+            <div className="mt-4 space-y-3">
+              <div>
+                <label
+                  htmlFor="operational-search"
+                  className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                >
+                  Termo de busca
+                </label>
+
+                <input
+                  id="operational-search"
+                  type="search"
+                  value={searchFilters.query}
+                  placeholder="Nome, referência, local..."
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-400/10"
+                  onChange={(event) =>
+                    updateSearchFilter(
+                      "query",
+                      event.target.value,
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label
+                    htmlFor="entity-type-filter"
+                    className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                  >
+                    Tipo
+                  </label>
+
+                  <select
+                    id="entity-type-filter"
+                    value={searchFilters.type}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-[11px] text-slate-200 outline-none focus:border-cyan-400/60"
+                    onChange={(event) =>
+                      updateSearchFilter(
+                        "type",
+                        event.target.value as
+                          | OperationalEntityType
+                          | "all",
+                      )
+                    }
+                  >
+                    <option value="all">
+                      Todos
+                    </option>
+
+                    {(
+                      Object.keys(
+                        OPERATIONAL_ENTITY_CONFIG,
+                      ) as OperationalEntityType[]
+                    ).map((type) => (
+                      <option
+                        key={type}
+                        value={type}
+                      >
+                        {
+                          OPERATIONAL_ENTITY_CONFIG[
+                            type
+                          ].label
+                        }
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="priority-filter"
+                    className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                  >
+                    Prioridade
+                  </label>
+
+                  <select
+                    id="priority-filter"
+                    value={searchFilters.priority}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-[11px] text-slate-200 outline-none focus:border-cyan-400/60"
+                    onChange={(event) =>
+                      updateSearchFilter(
+                        "priority",
+                        event.target.value as
+                          | OperationalPriority
+                          | "all",
+                      )
+                    }
+                  >
+                    <option value="all">
+                      Todas
+                    </option>
+
+                    {(
+                      Object.keys(
+                        OPERATIONAL_PRIORITY_CONFIG,
+                      ) as OperationalPriority[]
+                    ).map((priority) => (
+                      <option
+                        key={priority}
+                        value={priority}
+                      >
+                        {
+                          OPERATIONAL_PRIORITY_CONFIG[
+                            priority
+                          ].label
+                        }
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="status-filter"
+                  className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                >
+                  Status
+                </label>
+
+                <select
+                  id="status-filter"
+                  value={searchFilters.status}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-[11px] text-slate-200 outline-none focus:border-cyan-400/60"
+                  onChange={(event) =>
+                    updateSearchFilter(
+                      "status",
+                      event.target.value,
+                    )
+                  }
+                >
+                  <option value="all">
+                    Todos os status
+                  </option>
+
+                  {availableStatuses.map((statusValue) => (
+                    <option
+                      key={statusValue}
+                      value={statusValue}
+                    >
+                      {statusValue}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                type="button"
+                className="w-full rounded-lg border border-slate-700 px-3 py-2 text-[11px] font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!hasActiveFilters}
+                onClick={clearSearchFilters}
+              >
+                Limpar filtros
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="mt-4 space-y-2">
-          {(
-            Object.keys(
-              OPERATIONAL_ENTITY_CONFIG,
-            ) as OperationalEntityType[]
-          ).map((type) => {
-            const config = OPERATIONAL_ENTITY_CONFIG[type];
-            const active = layers[type];
+        <div className="border-b border-slate-800 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Camadas
+              </p>
 
-            const entityCount = DEMO_OPERATIONAL_ENTITIES.filter(
-              (entity) => entity.type === type,
-            ).length;
+              <p className="mt-1 text-[11px] text-slate-500">
+                {activeLayerCount} ativas ·{" "}
+                {visibleEntities.length} registros
+              </p>
+            </div>
 
-            return (
-              <button
-                key={type}
-                type="button"
-                className={[
-                  "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-xs transition",
-                  active
-                    ? "border-slate-600 bg-slate-800/90 text-white"
-                    : "border-slate-800 bg-slate-950/70 text-slate-500",
-                ].join(" ")}
-                onClick={() => toggleLayer(type)}
-              >
-                <span className="flex items-center gap-2">
+            <span className="flex h-7 min-w-7 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2 text-xs font-bold text-cyan-300">
+              {visibleEntities.length}
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {(
+              Object.keys(
+                OPERATIONAL_ENTITY_CONFIG,
+              ) as OperationalEntityType[]
+            ).map((type) => {
+              const config =
+                OPERATIONAL_ENTITY_CONFIG[type];
+
+              const active = layers[type];
+
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  className={[
+                    "flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[11px] transition",
+                    active
+                      ? "border-slate-600 bg-slate-800/90 text-white"
+                      : "border-slate-800 bg-slate-950 text-slate-500",
+                  ].join(" ")}
+                  onClick={() => toggleLayer(type)}
+                >
                   <span
-                    className="h-2.5 w-2.5 rounded-full"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{
-                      backgroundColor: active ? config.color : "#475569",
+                      backgroundColor: active
+                        ? config.color
+                        : "#475569",
                     }}
                   />
 
-                  {config.label}
-                </span>
+                  <span className="truncate">
+                    {config.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-                <span className="flex items-center gap-2">
-                  <span>{entityCount}</span>
-                  <span>{active ? "Ativa" : "Oculta"}</span>
-                </span>
-              </button>
-            );
-          })}
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              className="rounded-lg border border-slate-700 px-2 py-2 text-[10px] text-slate-300 transition hover:bg-slate-800"
+              onClick={showAllLayers}
+            >
+              Exibir todas
+            </button>
+
+            <button
+              type="button"
+              className="rounded-lg border border-slate-700 px-2 py-2 text-[10px] text-slate-300 transition hover:bg-slate-800"
+              onClick={hideAllLayers}
+            >
+              Ocultar todas
+            </button>
+          </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
-          <button
-            type="button"
-            className="rounded-lg border border-slate-700 px-2 py-2 text-[11px] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
-            onClick={showAllLayers}
-          >
-            Exibir todas
-          </button>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                Resultados
+              </p>
 
-          <button
-            type="button"
-            className="rounded-lg border border-slate-700 px-2 py-2 text-[11px] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
-            onClick={hideAllLayers}
-          >
-            Ocultar todas
-          </button>
+              <p className="mt-1 text-[11px] text-slate-500">
+                {visibleEntities.length} encontrados
+              </p>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3">
+            {visibleEntities.length === 0 ? (
+              <div className="flex h-full min-h-32 items-center justify-center rounded-xl border border-dashed border-slate-800 p-5 text-center">
+                <div>
+                  <p className="text-sm font-medium text-slate-300">
+                    Nenhum registro encontrado
+                  </p>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-600">
+                    Altere os filtros ou ative outras
+                    camadas.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {visibleEntities.map((entity) => {
+                  const config =
+                    OPERATIONAL_ENTITY_CONFIG[
+                      entity.type
+                    ];
+
+                  const priority =
+                    OPERATIONAL_PRIORITY_CONFIG[
+                      entity.priority ?? "normal"
+                    ];
+
+                  const isSelected =
+                    selectedEntity?.id === entity.id;
+
+                  return (
+                    <button
+                      key={entity.id}
+                      type="button"
+                      className={[
+                        "w-full rounded-xl border p-3 text-left transition",
+                        isSelected
+                          ? "border-cyan-400/60 bg-cyan-400/10"
+                          : "border-slate-800 bg-slate-900/70 hover:border-slate-700 hover:bg-slate-800/80",
+                      ].join(" ")}
+                      onClick={() =>
+                        selectEntity(entity)
+                      }
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p
+                            className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+                            style={{
+                              color: config.color,
+                            }}
+                          >
+                            {config.singularLabel}
+                          </p>
+
+                          <p className="mt-1 truncate text-xs font-semibold text-white">
+                            {entity.title}
+                          </p>
+                        </div>
+
+                        <span
+                          className="shrink-0 rounded-full px-2 py-1 text-[9px] font-semibold"
+                          style={{
+                            color: priority.color,
+                            backgroundColor:
+                              priority.backgroundColor,
+                          }}
+                        >
+                          {priority.label}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-slate-500">
+                        {entity.description}
+                      </p>
+
+                      <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-slate-600">
+                        <span className="truncate">
+                          {entity.reference}
+                        </span>
+
+                        <span className="shrink-0">
+                          {entity.status}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-800 p-3">
+            <button
+              type="button"
+              className="w-full rounded-lg border border-slate-700 px-3 py-2 text-[11px] text-slate-300 transition hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200"
+              onClick={returnToManaus}
+            >
+              Retornar à visão geral
+            </button>
+          </div>
         </div>
-
-        <button
-          type="button"
-          className="mt-2 w-full rounded-lg border border-slate-700 px-2 py-2 text-[11px] text-slate-300 transition hover:border-cyan-400/40 hover:bg-cyan-400/10 hover:text-cyan-200"
-          onClick={returnToManaus}
-        >
-          Retornar à visão geral
-        </button>
       </aside>
 
       {selectedEntity &&
@@ -448,7 +867,8 @@ export function OperationalMap() {
             <div
               className="h-1.5 w-full"
               style={{
-                backgroundColor: selectedEntityConfiguration.color,
+                backgroundColor:
+                  selectedEntityConfiguration.color,
               }}
             />
 
@@ -457,10 +877,13 @@ export function OperationalMap() {
                 <p
                   className="text-[11px] font-semibold uppercase tracking-[0.18em]"
                   style={{
-                    color: selectedEntityConfiguration.color,
+                    color:
+                      selectedEntityConfiguration.color,
                   }}
                 >
-                  {selectedEntityConfiguration.singularLabel}
+                  {
+                    selectedEntityConfiguration.singularLabel
+                  }
                 </p>
 
                 <h3 className="mt-2 text-lg font-semibold leading-6 text-white">
@@ -470,7 +893,7 @@ export function OperationalMap() {
 
               <button
                 type="button"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-sm text-slate-400 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-700 text-sm text-slate-400 transition hover:bg-slate-800 hover:text-white"
                 onClick={closeDetails}
                 aria-label="Fechar painel de detalhes"
               >
@@ -483,12 +906,14 @@ export function OperationalMap() {
                 <span
                   className="rounded-full px-3 py-1 text-[11px] font-semibold"
                   style={{
-                    color: selectedPriorityConfiguration.color,
+                    color:
+                      selectedPriorityConfiguration.color,
                     backgroundColor:
                       selectedPriorityConfiguration.backgroundColor,
                   }}
                 >
-                  Prioridade {selectedPriorityConfiguration.label}
+                  Prioridade{" "}
+                  {selectedPriorityConfiguration.label}
                 </span>
 
                 <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-300">
@@ -527,8 +952,13 @@ export function OperationalMap() {
                   </dt>
 
                   <dd className="mt-2 font-mono text-xs text-cyan-300">
-                    {selectedEntity.coordinates[1].toFixed(6)},{" "}
-                    {selectedEntity.coordinates[0].toFixed(6)}
+                    {selectedEntity.coordinates[1].toFixed(
+                      6,
+                    )}
+                    ,{" "}
+                    {selectedEntity.coordinates[0].toFixed(
+                      6,
+                    )}
                   </dd>
                 </div>
 
@@ -547,7 +977,7 @@ export function OperationalMap() {
             <div className="grid grid-cols-2 gap-3 border-t border-slate-800 p-4">
               <button
                 type="button"
-                className="rounded-xl border border-slate-700 px-3 py-3 text-xs font-semibold text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+                className="rounded-xl border border-slate-700 px-3 py-3 text-xs font-semibold text-slate-300 transition hover:bg-slate-800 hover:text-white"
                 onClick={closeDetails}
               >
                 Fechar
@@ -598,11 +1028,13 @@ export function OperationalMap() {
         </div>
       )}
 
-      {status === "ready" && !selectedEntity && (
-        <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur">
-          Clique em um marcador para consultar os detalhes
-        </div>
-      )}
+      {status === "ready" &&
+        !selectedEntity &&
+        visibleEntities.length > 0 && (
+          <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-lg border border-slate-700 bg-slate-950/85 px-3 py-2 text-xs text-slate-300 shadow-lg backdrop-blur">
+            {visibleEntities.length} registros visíveis
+          </div>
+        )}
     </div>
   );
 }
