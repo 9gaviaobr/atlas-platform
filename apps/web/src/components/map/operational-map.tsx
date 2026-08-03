@@ -3,84 +3,25 @@
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const MANAUS_CENTER: [number, number] = [-60.0217, -3.119];
+import {
+  DEMO_OPERATIONAL_ENTITIES,
+  MANAUS_CENTER,
+  OPERATIONAL_ENTITY_CONFIG,
+} from "@/features/operational-map/operational-map.data";
+
+import type {
+  OperationalEntityType,
+  OperationalLayerVisibility,
+} from "@/features/operational-map/operational-map.types";
 
 type MapStatus = "loading" | "ready" | "error";
 
-type EntityType = "occurrence" | "person" | "vehicle" | "alert";
-
-type OperationalEntity = {
-  id: string;
-  type: EntityType;
-  title: string;
-  description: string;
-  coordinates: [number, number];
+const INITIAL_LAYER_VISIBILITY: OperationalLayerVisibility = {
+  occurrence: true,
+  person: true,
+  vehicle: true,
+  alert: true,
 };
-
-type LayerVisibility = Record<EntityType, boolean>;
-
-const ENTITY_CONFIG: Record<
-  EntityType,
-  {
-    label: string;
-    color: string;
-  }
-> = {
-  occurrence: {
-    label: "Ocorrências",
-    color: "#f97316",
-  },
-  person: {
-    label: "Pessoas",
-    color: "#22d3ee",
-  },
-  vehicle: {
-    label: "Veículos",
-    color: "#a78bfa",
-  },
-  alert: {
-    label: "Alertas",
-    color: "#ef4444",
-  },
-};
-
-const DEMO_ENTITIES: OperationalEntity[] = [
-  {
-    id: "occurrence-001",
-    type: "occurrence",
-    title: "Ocorrência demonstrativa",
-    description: "Registro fictício utilizado para validar a camada.",
-    coordinates: [-60.013, -3.108],
-  },
-  {
-    id: "occurrence-002",
-    type: "occurrence",
-    title: "Registro georreferenciado",
-    description: "Ponto sintético para testes de visualização.",
-    coordinates: [-59.984, -3.122],
-  },
-  {
-    id: "person-001",
-    type: "person",
-    title: "Pessoa demonstrativa",
-    description: "Entidade fictícia sem vínculo com pessoa real.",
-    coordinates: [-60.041, -3.095],
-  },
-  {
-    id: "vehicle-001",
-    type: "vehicle",
-    title: "Veículo demonstrativo",
-    description: "Registro sintético para validação cartográfica.",
-    coordinates: [-60.026, -3.143],
-  },
-  {
-    id: "alert-001",
-    type: "alert",
-    title: "Alerta operacional",
-    description: "Alerta fictício de alta prioridade.",
-    coordinates: [-59.997, -3.087],
-  },
-];
 
 export function OperationalMap() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -89,13 +30,9 @@ export function OperationalMap() {
 
   const [status, setStatus] = useState<MapStatus>("loading");
   const [errorMessage, setErrorMessage] = useState("");
-
-  const [layers, setLayers] = useState<LayerVisibility>({
-    occurrence: true,
-    person: true,
-    vehicle: true,
-    alert: true,
-  });
+  const [layers, setLayers] = useState<OperationalLayerVisibility>(
+    INITIAL_LAYER_VISIBILITY,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -214,6 +151,8 @@ export function OperationalMap() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function renderMarkers() {
       const map = mapRef.current;
 
@@ -226,33 +165,72 @@ export function OperationalMap() {
 
       const { Marker, Popup } = await import("maplibre-gl");
 
-      const visibleEntities = DEMO_ENTITIES.filter(
+      if (cancelled) {
+        return;
+      }
+
+      const visibleEntities = DEMO_OPERATIONAL_ENTITIES.filter(
         (entity) => layers[entity.type],
       );
 
       markersRef.current = visibleEntities.map((entity) => {
-        const config = ENTITY_CONFIG[entity.type];
+        const config = OPERATIONAL_ENTITY_CONFIG[entity.type];
+
+        const priorityLabel = {
+          normal: "Normal",
+          medium: "Média",
+          high: "Alta",
+        }[entity.priority ?? "normal"];
+
+        const formattedDate = new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date(entity.createdAt));
 
         const popup = new Popup({
           offset: 26,
           closeButton: true,
+          closeOnClick: false,
         }).setHTML(`
           <div style="
-            min-width: 210px;
+            min-width: 230px;
             font-family: Arial, sans-serif;
             color: #0f172a;
           ">
             <div style="
-              margin-bottom: 8px;
-              font-size: 11px;
-              font-weight: 700;
-              text-transform: uppercase;
-              color: ${config.color};
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              margin-bottom: 10px;
             ">
-              ${config.label}
+              <span style="
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: ${config.color};
+              ">
+                ${config.singularLabel}
+              </span>
+
+              <span style="
+                border-radius: 999px;
+                background: #e2e8f0;
+                padding: 3px 8px;
+                font-size: 10px;
+                font-weight: 700;
+                color: #334155;
+              ">
+                ${priorityLabel}
+              </span>
             </div>
 
-            <strong style="font-size: 14px;">
+            <strong style="
+              display: block;
+              font-size: 14px;
+              line-height: 1.4;
+            ">
               ${entity.title}
             </strong>
 
@@ -264,6 +242,16 @@ export function OperationalMap() {
             ">
               ${entity.description}
             </p>
+
+            <div style="
+              margin-top: 12px;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 10px;
+              font-size: 11px;
+              color: #64748b;
+            ">
+              Registrado em ${formattedDate}
+            </div>
           </div>
         `);
 
@@ -277,36 +265,83 @@ export function OperationalMap() {
     }
 
     void renderMarkers();
+
+    return () => {
+      cancelled = true;
+    };
   }, [layers, status]);
 
-  function toggleLayer(type: EntityType) {
+  function toggleLayer(type: OperationalEntityType) {
     setLayers((current) => ({
       ...current,
       [type]: !current[type],
     }));
   }
 
+  function showAllLayers() {
+    setLayers({
+      occurrence: true,
+      person: true,
+      vehicle: true,
+      alert: true,
+    });
+  }
+
+  function hideAllLayers() {
+    setLayers({
+      occurrence: false,
+      person: false,
+      vehicle: false,
+      alert: false,
+    });
+  }
+
   function reloadPage() {
     window.location.reload();
   }
 
+  const activeLayerCount = Object.values(layers).filter(Boolean).length;
+  const visibleEntityCount = DEMO_OPERATIONAL_ENTITIES.filter(
+    (entity) => layers[entity.type],
+  ).length;
+
   return (
-    <div className="relative h-[460px] w-full overflow-hidden bg-[#020617]">
+    <div className="relative h-[480px] w-full overflow-hidden bg-[#020617]">
       <div
         ref={containerRef}
         className="absolute inset-0 h-full w-full"
         aria-label="Mapa operacional de Manaus"
       />
 
-      <div className="absolute left-4 top-4 z-20 w-52 rounded-xl border border-slate-700 bg-slate-950/90 p-3 shadow-xl backdrop-blur">
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-          Camadas operacionais
-        </p>
+      <aside className="absolute left-4 top-4 z-20 w-60 rounded-xl border border-slate-700 bg-slate-950/90 p-3 shadow-xl backdrop-blur">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+              Camadas operacionais
+            </p>
 
-        <div className="space-y-2">
-          {(Object.keys(ENTITY_CONFIG) as EntityType[]).map((type) => {
-            const config = ENTITY_CONFIG[type];
+            <p className="mt-1 text-[11px] text-slate-500">
+              {activeLayerCount} camadas · {visibleEntityCount} registros
+            </p>
+          </div>
+
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-cyan-400/20 bg-cyan-400/10 text-xs font-bold text-cyan-300">
+            {visibleEntityCount}
+          </span>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {(
+            Object.keys(
+              OPERATIONAL_ENTITY_CONFIG,
+            ) as OperationalEntityType[]
+          ).map((type) => {
+            const config = OPERATIONAL_ENTITY_CONFIG[type];
             const active = layers[type];
+
+            const entityCount = DEMO_OPERATIONAL_ENTITIES.filter(
+              (entity) => entity.type === type,
+            ).length;
 
             return (
               <button
@@ -324,21 +359,40 @@ export function OperationalMap() {
                   <span
                     className="h-2.5 w-2.5 rounded-full"
                     style={{
-                      backgroundColor: active
-                        ? config.color
-                        : "#475569",
+                      backgroundColor: active ? config.color : "#475569",
                     }}
                   />
 
                   {config.label}
                 </span>
 
-                <span>{active ? "Ativa" : "Oculta"}</span>
+                <span className="flex items-center gap-2">
+                  <span>{entityCount}</span>
+                  <span>{active ? "Ativa" : "Oculta"}</span>
+                </span>
               </button>
             );
           })}
         </div>
-      </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t border-slate-800 pt-3">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-700 px-2 py-2 text-[11px] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
+            onClick={showAllLayers}
+          >
+            Exibir todas
+          </button>
+
+          <button
+            type="button"
+            className="rounded-lg border border-slate-700 px-2 py-2 text-[11px] text-slate-300 transition hover:border-slate-600 hover:bg-slate-800"
+            onClick={hideAllLayers}
+          >
+            Ocultar todas
+          </button>
+        </div>
+      </aside>
 
       {status === "loading" && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80">
