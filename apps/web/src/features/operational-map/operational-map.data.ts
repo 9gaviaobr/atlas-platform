@@ -2,6 +2,8 @@ import type {
   OperationalEntity,
   OperationalEntityConfiguration,
   OperationalEntityType,
+  OperationalPriority,
+  OperationalPriorityConfiguration,
 } from "./operational-map.types";
 
 export const MANAUS_CENTER: [number, number] = [-60.0217, -3.119];
@@ -35,12 +37,32 @@ export const OPERATIONAL_ENTITY_CONFIG: Record<
   },
 };
 
+export const OPERATIONAL_PRIORITY_CONFIG: Record<
+  OperationalPriority,
+  OperationalPriorityConfiguration
+> = {
+  normal: {
+    label: "Normal",
+    color: "#cbd5e1",
+    backgroundColor: "#334155",
+  },
+
+  medium: {
+    label: "Média",
+    color: "#fde68a",
+    backgroundColor: "#854d0e",
+  },
+
+  high: {
+    label: "Alta",
+    color: "#fecaca",
+    backgroundColor: "#991b1b",
+  },
+};
+
 /*
  * Registros exclusivamente demonstrativos.
  * Não representam pessoas, veículos ou ocorrências reais.
- *
- * Futuramente esta constante será substituída por dados
- * provenientes da API e do banco de dados do Atlas.
  */
 export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
   {
@@ -48,10 +70,13 @@ export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
     type: "occurrence",
     title: "Ocorrência demonstrativa",
     description:
-      "Registro fictício utilizado para validar a camada de ocorrências.",
+      "Registro fictício utilizado para validar a seleção de entidades.",
     coordinates: [-60.013, -3.108],
     createdAt: "2026-08-02T12:00:00-04:00",
     priority: "medium",
+    status: "Em análise",
+    reference: "OCC-DEMO-001",
+    locationLabel: "Zona urbana de Manaus",
   },
 
   {
@@ -63,6 +88,9 @@ export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
     coordinates: [-59.984, -3.122],
     createdAt: "2026-08-02T12:15:00-04:00",
     priority: "normal",
+    status: "Registrado",
+    reference: "OCC-DEMO-002",
+    locationLabel: "Área demonstrativa leste",
   },
 
   {
@@ -74,6 +102,9 @@ export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
     coordinates: [-60.041, -3.095],
     createdAt: "2026-08-02T12:30:00-04:00",
     priority: "normal",
+    status: "Monitoramento demonstrativo",
+    reference: "PER-DEMO-001",
+    locationLabel: "Área demonstrativa norte",
   },
 
   {
@@ -85,6 +116,9 @@ export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
     coordinates: [-60.026, -3.143],
     createdAt: "2026-08-02T12:45:00-04:00",
     priority: "normal",
+    status: "Cadastrado",
+    reference: "VEI-DEMO-001",
+    locationLabel: "Área demonstrativa sul",
   },
 
   {
@@ -96,5 +130,8 @@ export const DEMO_OPERATIONAL_ENTITIES: OperationalEntity[] = [
     coordinates: [-59.997, -3.087],
     createdAt: "2026-08-02T13:00:00-04:00",
     priority: "high",
+    status: "Ativo",
+    reference: "ALT-DEMO-001",
+    locationLabel: "Área demonstrativa nordeste",
   },
 ];
