@@ -4,7 +4,12 @@ export type OperationalEntityType =
   | "vehicle"
   | "alert";
 
-export type OperationalCoordinates = [longitude: number, latitude: number];
+export type OperationalPriority = "normal" | "medium" | "high";
+
+export type OperationalCoordinates = [
+  longitude: number,
+  latitude: number,
+];
 
 export type OperationalEntity = {
   id: string;
@@ -13,7 +18,10 @@ export type OperationalEntity = {
   description: string;
   coordinates: OperationalCoordinates;
   createdAt: string;
-  priority?: "normal" | "medium" | "high";
+  priority?: OperationalPriority;
+  status: string;
+  reference: string;
+  locationLabel: string;
 };
 
 export type OperationalLayerVisibility = Record<
@@ -25,4 +33,10 @@ export type OperationalEntityConfiguration = {
   label: string;
   singularLabel: string;
   color: string;
+};
+
+export type OperationalPriorityConfiguration = {
+  label: string;
+  color: string;
+  backgroundColor: string;
 };
